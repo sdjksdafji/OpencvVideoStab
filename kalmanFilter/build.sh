@@ -1,0 +1,1 @@
+g++ kalmanFilter.cpp `pkg-config opencv --cflags --libs` -o kalmanFilter

@@ -1,0 +1,1 @@
+g++ naive.cpp `pkg-config opencv --cflags --libs` -o naive
