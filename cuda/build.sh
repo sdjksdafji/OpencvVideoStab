@@ -1,0 +1,1 @@
+g++ cuda.cpp `pkg-config opencv --cflags --libs` -o cuda
