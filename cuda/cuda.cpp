@@ -180,16 +180,23 @@ int main(int argc, char **argv) {
         vector<uchar>  statusVector;
         vector<float> err;
 
-        cuda::GpuMat prevCorner, currentCorner, status;
+        cuda::GpuMat prevCorner, currentCorner, cornerDiff, cornerDiffMinusMean, status, validStatusMask, closeToMeanMasks, tmpMask, finalMask;
 
         int type = CV_32FC1;
 
         cornerDetector->detect(prev_grey, prevCorner);
         pfDetector->calc(prev_grey, cur_grey, prevCorner, currentCorner, status);
 
+        // -------------------------------------------DEBUG-------------------------------------------------------------
         download(prevCorner, prevCornerVector);
         download(currentCorner, currentCornerVector);
         download(status, statusVector);
+
+//        cout << "prevCorner.size(w, h): " << prevCorner.size().width << ", " << prevCorner.size().height
+//             << " (r,c)" << prevCorner.rows << ", " << prevCorner.cols << " " << prevCorner.type() << endl;
+//
+//        cout << "status.size(w, h): " << status.size().width << ", " << status.size().height
+//             << " (r,c)" << status.rows << ", " << status.cols << " " << status.type() << endl;
 
         double pre_to_cur_x_avg = 0.0;
         double pre_to_cur_y_avg = 0.0;
@@ -221,49 +228,82 @@ int main(int argc, char **argv) {
         pre_to_cur_x_std = sqrt(pre_to_cur_x_std / currentCornerVectorClean.size());
         pre_to_cur_y_std = sqrt(pre_to_cur_y_std / currentCornerVectorClean.size());
 
-        // find mean of points close to mean
-        int count = 0;
-        double new_mean_dx = 0.0;
-        double new_mean_dy = 0.0;
-        for(int i =0 ; i<currentCornerVectorClean.size(); i++) {
-            double pre_to_cur_x = currentCornerVectorClean[i].x - prevCornerVectorClean[i].x;
-            double pre_to_cur_y = currentCornerVectorClean[i].y - prevCornerVectorClean[i].y;
-            if ((pre_to_cur_x - pre_to_cur_x_avg < pre_to_cur_x_std
-                && pre_to_cur_x - pre_to_cur_x_avg > pre_to_cur_x_std * -1.0)
-                &&
-                (pre_to_cur_y - pre_to_cur_y_avg < pre_to_cur_y_std
-                && pre_to_cur_y - pre_to_cur_y_avg > pre_to_cur_y_std * -1.0)) {
-                new_mean_dx += pre_to_cur_x;
-                new_mean_dy += pre_to_cur_y;
-                count++;
-            }
-        }
-        new_mean_dx /= count;
-        new_mean_dy /= count;
+        // -------------------------------------------DEBUG END---------------------------------------------------------
 
-        // translation + rotation only
-        Mat T = estimateRigidTransform(prevCornerVectorClean, currentCornerVectorClean,
-                                       false); // false = rigid transform, no scaling/shearing
+        cuda::compare(status, Scalar(0), validStatusMask, CMP_NE);
+        Scalar prevCornerSum = cuda::sum(prevCorner, validStatusMask);
+        Scalar currentCornerSum = cuda::sum(currentCorner, validStatusMask);
+        Scalar cornerCount = cuda::countNonZero(validStatusMask);
+        double prevCornerCentroidX = (double) prevCornerSum[0] / cornerCount[0];
+        double prevCornerCentroidY = (double) prevCornerSum[1] / cornerCount[0];
+        double currentCornderCentroidX = (double) currentCornerSum[0] / cornerCount[0];
+        double currentCornderCentroidY = (double) currentCornerSum[1] / cornerCount[0];
+        double diffMeanX = currentCornderCentroidX - prevCornerCentroidX;
+        double diffMeanY = currentCornderCentroidY - prevCornerCentroidY;
+        cout << "prevCornerSum: " << prevCornerSum << " count: " << cornerCount << " " << prevCornerSum[0] << endl;
 
-        // in rare cases no transform is found. We'll just use the last known good transform.
-        if (T.data == NULL) {
-            last_T.copyTo(T);
-            k=1;
-        }
+        cuda::subtract(currentCorner, prevCorner, cornerDiff);
+        cuda::subtract(cornerDiff, Scalar(diffMeanX, diffMeanY), cornerDiffMinusMean);
+        Scalar cornerDiffMinusMeanSqrSum = cuda::sqrSum(cornerDiffMinusMean, validStatusMask);
+        double diffStdX = sqrt((double) cornerDiffMinusMeanSqrSum[0] / cornerCount[0]);
+        double diffStdY = sqrt((double)cornerDiffMinusMeanSqrSum[1] / cornerCount[0]);
 
-        T.copyTo(last_T);
-
-        // original get estimate rigid transformation
-//        double dx = T.at<double>(0, 2);
-//        double dy = T.at<double>(1, 2);
-//        double da = atan2(T.at<double>(1, 0), T.at<double>(0, 0));
+        // -------------------------------------------DEBUG-------------------------------------------------------------
 //
-        double dx = new_mean_dx;
-        double dy = new_mean_dy;
+//        cout << "Mean: " << pre_to_cur_x_avg << "," << pre_to_cur_y_avg << ":" << diffMeanX << diffMeanY << endl;
+//        cout << "Std: " << pre_to_cur_x_std << "," << pre_to_cur_y_std << ":" << diffStdX << diffStdY << endl;
+//        // find mean of points close to mean
+//        int count = 0;
+//        double new_mean_dx = 0.0;
+//        double new_mean_dy = 0.0;
+//        for (int i = 0; i < currentCornerVectorClean.size(); i++) {
+//            double pre_to_cur_x = currentCornerVectorClean[i].x - prevCornerVectorClean[i].x;
+//            double pre_to_cur_y = currentCornerVectorClean[i].y - prevCornerVectorClean[i].y;
+//            if (pre_to_cur_x - pre_to_cur_x_avg < pre_to_cur_x_std
+//                && pre_to_cur_y - pre_to_cur_y_avg < pre_to_cur_y_std) {
+//                new_mean_dx += pre_to_cur_x;
+//                new_mean_dy += pre_to_cur_y;
+//                count++;
+//            }
+//        }
+//        new_mean_dx /= count;
+//        new_mean_dy /= count;
+//
+//        // translation + rotation only
+//        Mat T = estimateRigidTransform(prevCornerVectorClean, currentCornerVectorClean,
+//                                       false); // false = rigid transform, no scaling/shearing
+//
+//        // in rare cases no transform is found. We'll just use the last known good transform.
+//        if (T.data == NULL) {
+//            last_T.copyTo(T);
+//            k=1;
+//        }
+//
+//        T.copyTo(last_T);
+//
+//        // original get estimate rigid transformation
+////        double dx = T.at<double>(0, 2);
+////        double dy = T.at<double>(1, 2);
+////        double da = atan2(T.at<double>(1, 0), T.at<double>(0, 0));
+//
+        // -------------------------------------------DEBUG END---------------------------------------------------------
+        vector<cuda::GpuMat> splitCloseToMeanMasks;
+        cuda::compare(cornerDiffMinusMean, Scalar(diffStdX, diffStdY), closeToMeanMasks, CMP_LT);
+
+        cuda::split(closeToMeanMasks, splitCloseToMeanMasks);
+
+        cuda::bitwise_and(splitCloseToMeanMasks[0], splitCloseToMeanMasks[1], tmpMask);
+        cuda::bitwise_and(tmpMask, validStatusMask, finalMask);
+        Scalar closeToCentroidCornerDiffSum = cuda::sum(cornerDiff, finalMask);
+        Scalar closeToCentroidCornerCount = cuda::countNonZero(finalMask);
+        double dxGpu = closeToCentroidCornerDiffSum[0] / closeToCentroidCornerCount[0];
+        double dyGpu = closeToCentroidCornerDiffSum[1] / closeToCentroidCornerCount[0];
+
+        double dx = dxGpu;
+        double dy = dyGpu;
         double da = 0;
 
-        //
-        //prev_to_cur_transform.push_back(TransformParam(dx, dy, da));
+//        cout << new_mean_dx << "," << new_mean_dy << " : " << dxGpu << "," << dyGpu << endl;
 
         // -------------------------------------------------------------------------------------------------------------
         // to reset the kalman filter if the camera moves rapidly
@@ -277,7 +317,7 @@ int main(int argc, char **argv) {
 
         out_transform << k << " dx:" << dx << " dy:" << dy << " da:" << da << " points mean x:"
                       << pre_to_cur_x_avg << " y:" << pre_to_cur_y_avg
-                      << "reduced mean x:" << new_mean_dx << " y:" << new_mean_dy << endl;
+                      << "reduced mean x:" << dxGpu << " y:" << dyGpu << endl;
         //
         // Accumulated frame to frame transform
         x += dx;
@@ -333,15 +373,8 @@ int main(int argc, char **argv) {
 
         cuda::GpuMat cur2;
 
-        cuda::warpAffine(cur, cur2, T, cur.size());
-//        cuda::rotate(cur, cur2, cur.size(), 45); // test: rotates counter clockwise around origin (top left)
-//
-//        cur2 = cur2(Range(vert_border, cur2.rows - vert_border),
-//                    Range(HORIZONTAL_BORDER_CROP, cur2.cols - HORIZONTAL_BORDER_CROP));
-//
-//        // Resize cur2 back to cur size, for better side by side comparison
-//        resize(cur2, cur2, cur.size());
-//
+        cuda::rotate(cur, cur2, cur.size(), 0, dx, dy);
+
         cur2.download(cur2Cpu);
         // Now draw the original and stablised side by side for coolness
         Mat canvas = Mat::zeros(curCpu.rows, curCpu.cols * 2 + 10, cur.type());
