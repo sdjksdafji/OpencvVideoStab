@@ -188,45 +188,45 @@ int main(int argc, char **argv) {
         pfDetector->calc(prev_grey, cur_grey, prevCorner, currentCorner, status);
 
         // -------------------------------------------DEBUG-------------------------------------------------------------
-        download(prevCorner, prevCornerVector);
-        download(currentCorner, currentCornerVector);
-        download(status, statusVector);
-
-//        cout << "prevCorner.size(w, h): " << prevCorner.size().width << ", " << prevCorner.size().height
-//             << " (r,c)" << prevCorner.rows << ", " << prevCorner.cols << " " << prevCorner.type() << endl;
+//        download(prevCorner, prevCornerVector);
+//        download(currentCorner, currentCornerVector);
+//        download(status, statusVector);
 //
-//        cout << "status.size(w, h): " << status.size().width << ", " << status.size().height
-//             << " (r,c)" << status.rows << ", " << status.cols << " " << status.type() << endl;
-
-        double pre_to_cur_x_avg = 0.0;
-        double pre_to_cur_y_avg = 0.0;
-        double pre_to_cur_x_std = 0.0;
-        double pre_to_cur_y_std = 0.0;
-        // weed out bad matches and calculate mean
-        for (size_t i = 0; i < statusVector.size(); i++) {
-            if (statusVector[i]) {
-                prevCornerVectorClean.push_back(prevCornerVector[i]);
-                currentCornerVectorClean.push_back(currentCornerVector[i]);
-//                out_transform << "prevCornerVector:" << prevCornerVector[i].x << "," << prevCornerVector[i].y
-//                              << " currentCornerVector" << currentCornerVector[i].x << "," << currentCornerVector[i].y
-//                              << endl;
-                // calculate stat
-                pre_to_cur_x_avg += currentCornerVector[i].x - prevCornerVector[i].x;
-                pre_to_cur_y_avg += currentCornerVector[i].y - prevCornerVector[i].y;
-            }
-        }
-        pre_to_cur_x_avg = pre_to_cur_x_avg / currentCornerVectorClean.size();
-        pre_to_cur_y_avg = pre_to_cur_y_avg / currentCornerVectorClean.size();
-
-        // calculate std
-        for(int i =0 ; i<currentCornerVectorClean.size(); i++){
-            double pre_to_cur_x = currentCornerVectorClean[i].x - prevCornerVectorClean[i].x;
-            double pre_to_cur_y = currentCornerVectorClean[i].y - prevCornerVectorClean[i].y;
-            pre_to_cur_x_std += pow(pre_to_cur_x - pre_to_cur_x_avg, 2);
-            pre_to_cur_y_std += pow(pre_to_cur_y - pre_to_cur_y_avg, 2);
-        }
-        pre_to_cur_x_std = sqrt(pre_to_cur_x_std / currentCornerVectorClean.size());
-        pre_to_cur_y_std = sqrt(pre_to_cur_y_std / currentCornerVectorClean.size());
+////        cout << "prevCorner.size(w, h): " << prevCorner.size().width << ", " << prevCorner.size().height
+////             << " (r,c)" << prevCorner.rows << ", " << prevCorner.cols << " " << prevCorner.type() << endl;
+////
+////        cout << "status.size(w, h): " << status.size().width << ", " << status.size().height
+////             << " (r,c)" << status.rows << ", " << status.cols << " " << status.type() << endl;
+//
+//        double pre_to_cur_x_avg = 0.0;
+//        double pre_to_cur_y_avg = 0.0;
+//        double pre_to_cur_x_std = 0.0;
+//        double pre_to_cur_y_std = 0.0;
+//        // weed out bad matches and calculate mean
+//        for (size_t i = 0; i < statusVector.size(); i++) {
+//            if (statusVector[i]) {
+//                prevCornerVectorClean.push_back(prevCornerVector[i]);
+//                currentCornerVectorClean.push_back(currentCornerVector[i]);
+////                out_transform << "prevCornerVector:" << prevCornerVector[i].x << "," << prevCornerVector[i].y
+////                              << " currentCornerVector" << currentCornerVector[i].x << "," << currentCornerVector[i].y
+////                              << endl;
+//                // calculate stat
+//                pre_to_cur_x_avg += currentCornerVector[i].x - prevCornerVector[i].x;
+//                pre_to_cur_y_avg += currentCornerVector[i].y - prevCornerVector[i].y;
+//            }
+//        }
+//        pre_to_cur_x_avg = pre_to_cur_x_avg / currentCornerVectorClean.size();
+//        pre_to_cur_y_avg = pre_to_cur_y_avg / currentCornerVectorClean.size();
+//
+//        // calculate std
+//        for(int i =0 ; i<currentCornerVectorClean.size(); i++){
+//            double pre_to_cur_x = currentCornerVectorClean[i].x - prevCornerVectorClean[i].x;
+//            double pre_to_cur_y = currentCornerVectorClean[i].y - prevCornerVectorClean[i].y;
+//            pre_to_cur_x_std += pow(pre_to_cur_x - pre_to_cur_x_avg, 2);
+//            pre_to_cur_y_std += pow(pre_to_cur_y - pre_to_cur_y_avg, 2);
+//        }
+//        pre_to_cur_x_std = sqrt(pre_to_cur_x_std / currentCornerVectorClean.size());
+//        pre_to_cur_y_std = sqrt(pre_to_cur_y_std / currentCornerVectorClean.size());
 
         // -------------------------------------------DEBUG END---------------------------------------------------------
 
@@ -316,7 +316,6 @@ int main(int argc, char **argv) {
         // -------------------------------------------------------------------------------------------------------------
 
         out_transform << k << " dx:" << dx << " dy:" << dy << " da:" << da << " points mean x:"
-                      << pre_to_cur_x_avg << " y:" << pre_to_cur_y_avg
                       << "reduced mean x:" << dxGpu << " y:" << dyGpu << endl;
         //
         // Accumulated frame to frame transform

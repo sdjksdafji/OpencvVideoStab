@@ -108,3 +108,10 @@ fabric.properties
 
 # ----------------------------------------------------------------------------------------------------------------------
 *.txt
+*.mp4
+
+# binary
+naive
+cuda
+kalmanFilter
+kalmanFilterImproved
